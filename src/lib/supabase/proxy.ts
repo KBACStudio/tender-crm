@@ -5,8 +5,20 @@ import { getSupabaseConfig } from "@/lib/supabase/env";
 const publicPaths = ["/login", "/auth"];
 
 export async function updateSession(request: NextRequest) {
+  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
   const config = getSupabaseConfig();
-  if (!config) return NextResponse.next({ request });
+
+  if (!config) {
+    if (process.env.NODE_ENV === "production" && !isPublicPath) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "missing-config");
+      url.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+      return NextResponse.redirect(url);
+    }
+
+    return NextResponse.next({ request });
+  }
 
   let response = NextResponse.next({ request });
 
@@ -26,8 +38,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user }
   } = await supabase.auth.getUser();
-
-  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();
