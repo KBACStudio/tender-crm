@@ -6,7 +6,7 @@ Impostare queste variabili su Vercel, in `Project Settings` -> `Environment Vari
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL="https://fezayrvxzqtumazspnpy.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="..."
 DATABASE_URL="..."
 DIRECT_URL="..."
 ```
