@@ -1,4 +1,4 @@
-import { DesignLevel, GroupMemberRole, PersonCompanyRole, SubjectType, TenderOutcome, TenderTaskArea, TenderTaskStatus } from "@prisma/client";
+import { ContractMilestoneStatus, ContractStatus, ContractTaskArea, ContractTaskStatus, DesignLevel, GroupMemberRole, PersonCompanyRole, SubjectType, TenderOutcome, TenderTaskArea, TenderTaskStatus, UserRole } from "@prisma/client";
 
 export const subjectTypeLabels: Record<SubjectType, string> = {
   construction_company: "Impresa edile",
@@ -59,6 +59,41 @@ export const tenderTaskAreaLabels: Record<TenderTaskArea, string> = {
   economic_offer: "Offerta economica",
   rtp: "RTP",
   general: "Generale"
+};
+
+export const contractStatusLabels: Record<ContractStatus, string> = {
+  draft: "Bozza",
+  active: "In corso",
+  suspended: "Sospeso",
+  closed: "Chiuso"
+};
+
+export const userRoleLabels: Record<UserRole, string> = {
+  admin: "Admin",
+  operator: "Operativo",
+  viewer: "Sola lettura"
+};
+
+export const contractTaskStatusLabels: Record<ContractTaskStatus, string> = {
+  todo: "Da fare",
+  doing: "In corso",
+  done: "Fatto"
+};
+
+export const contractTaskAreaLabels: Record<ContractTaskArea, string> = {
+  setup: "Setup",
+  execution: "Esecuzione",
+  accounting: "Contabilita",
+  variations: "Varianti",
+  closing: "Chiusura",
+  general: "Generale"
+};
+
+export const contractMilestoneStatusLabels: Record<ContractMilestoneStatus, string> = {
+  planned: "Pianificato",
+  in_progress: "In corso",
+  done: "Completato",
+  cancelled: "Annullato"
 };
 
 export const soaCategoryDescriptions: Record<string, string> = {

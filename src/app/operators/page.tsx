@@ -2,9 +2,13 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader, Table } from "@/components/ui";
+import { requireOrganization } from "@/server/auth";
 
 export default async function OperatorsPage() {
+  const { organization } = await requireOrganization();
+  const organizationId = organization.id;
   const operators = await prisma.economicOperator.findMany({
+    where: { organizationId },
     include: { revenues: { orderBy: { year: "desc" } } },
     orderBy: { displayName: "asc" }
   });

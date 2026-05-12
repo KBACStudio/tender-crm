@@ -1,6 +1,7 @@
 import {
   Certification,
   Company,
+  Contract,
   EconomicOperator,
   Grouping,
   Person,
@@ -15,12 +16,13 @@ import {
   TenderWorkRequirement,
   WorkReference
 } from "@prisma/client";
-import { designLevelLabels, groupRoleLabels, subjectTypeLabels, tenderOutcomeLabels } from "@/lib/labels";
+import { contractStatusLabels, designLevelLabels, groupRoleLabels, subjectTypeLabels, tenderOutcomeLabels } from "@/lib/labels";
 import { toDateInput } from "@/lib/format";
 import { workReferenceSortValue } from "@/lib/work-references";
 import { Field, FormActions, Panel } from "@/components/ui";
 import {
   updateEconomicOperator,
+  upsertContract,
   upsertCertification,
   upsertCompany,
   upsertGrouping,
@@ -254,6 +256,44 @@ export function TenderForm({ tender, workReferences, operators }: { tender?: Ten
         <div className="md:col-span-2"><GroupMemberRows name="groupMembers" operatorOptions={operatorOptions} initialRows={initialGroupRows} /></div>
         <div className="md:col-span-2"><Field label="Note"><textarea name="notes" defaultValue={tender?.notes ?? ""} /></Field></div>
         <div className="md:col-span-2"><FormActions cancelHref={tender ? `/tenders/${tender.id}` : "/tenders"} /></div>
+      </form>
+    </Panel>
+  );
+}
+
+export function ContractForm({ contract }: { contract: Contract & { tender: Tender } }) {
+  return (
+    <Panel className="p-5">
+      <form action={upsertContract.bind(null, contract.id)} className="grid gap-4 md:grid-cols-2">
+        <Field label="Stato appalto">
+          <select name="status" defaultValue={contract.status}>
+            {Object.entries(contractStatusLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Data aggiudicazione">
+          <input name="awardedAt" type="date" defaultValue={toDateInput(contract.awardedAt ?? null)} />
+        </Field>
+        <Field label="Importo aggiudicato €">
+          <input name="awardedValue" inputMode="decimal" defaultValue={contract.awardedValue?.toString() ?? ""} />
+        </Field>
+        <Field label="Inizio esecuzione">
+          <input name="startedAt" type="date" defaultValue={toDateInput(contract.startedAt ?? null)} />
+        </Field>
+        <Field label="Fine esecuzione">
+          <input name="endedAt" type="date" defaultValue={toDateInput(contract.endedAt ?? null)} />
+        </Field>
+        <div className="md:col-span-2">
+          <Field label="Note">
+            <textarea name="notes" defaultValue={contract.notes ?? ""} />
+          </Field>
+        </div>
+        <div className="md:col-span-2">
+          <FormActions cancelHref={`/contracts/${contract.id}`} />
+        </div>
       </form>
     </Panel>
   );

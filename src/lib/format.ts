@@ -1,8 +1,4 @@
-import { clsx, type ClassValue } from "clsx";
-
-export function cn(...inputs: ClassValue[]) {
-  return clsx(inputs);
-}
+export { cn } from "@/lib/utils";
 
 export function formatDate(value?: Date | string | null) {
   if (!value) return "-";

@@ -2,18 +2,22 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { groupRoleLabels, tenderOutcomeLabels, tenderTaskAreaLabels, tenderTaskStatusLabels } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { addTenderTask, deleteTender, updateTenderTaskStatus } from "@/server/actions";
+import { addTenderTask, deleteTender, openTenderContract, updateTenderTaskStatus } from "@/server/actions";
+import { requireOrganization } from "@/server/auth";
 import { Badge, DeleteButton, Field, PageHeader, Panel, Table } from "@/components/ui";
 
 export default async function TenderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const tender = await prisma.tender.findUnique({
-    where: { id },
+  const { organization } = await requireOrganization();
+  const organizationId = organization.id;
+  const tender = await prisma.tender.findFirst({
+    where: { id, organizationId },
     include: {
       workRequirements: true,
       soaRequirements: true,
       grouping: { include: { members: { include: { operator: true } } } },
-      tasks: { include: { operator: true }, orderBy: [{ status: "asc" }, { dueDate: "asc" }] }
+      tasks: { include: { operator: true }, orderBy: [{ status: "asc" }, { dueDate: "asc" }] },
+      contract: true
     }
   });
   if (!tender) notFound();
@@ -23,7 +27,16 @@ export default async function TenderDetailPage({ params }: { params: Promise<{ i
   return (
     <>
       <PageHeader title={tender.object} description={`CIG ${tender.cig}`} actionHref={`/tenders/edit/${tender.id}`} actionLabel="Modifica gara" />
-      <div className="mb-4 flex justify-end"><DeleteButton action={deleteTender.bind(null, tender.id)} /></div>
+      <div className="mb-4 flex flex-wrap justify-end gap-2">
+        {tender.outcome === "awarded" ? (
+          <form action={openTenderContract.bind(null, tender.id)}>
+            <button className="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-white" type="submit">
+              Apri appalto
+            </button>
+          </form>
+        ) : null}
+        <DeleteButton action={deleteTender.bind(null, tender.id)} />
+      </div>
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
         <div className="space-y-6">
           <Panel className="p-4"><h2 className="mb-3 font-bold">Dati gara</h2><div className="grid gap-2 text-sm md:grid-cols-2"><div>CUP: {tender.cup ?? "-"}</div><div>Luogo: {tender.place ?? "-"}</div><div>Stazione appaltante: {tender.contractingBody ?? "-"}</div><div>Valore: {formatCurrency(tender.value?.toString())}</div><div>Pubblicazione: {formatDate(tender.publishedAt)}</div><div>Scadenza: {formatDate(tender.deadline)}</div><div>Esito: {tenderOutcomeLabels[tender.outcome]}</div><div className="md:col-span-2">Note: {tender.notes ?? "-"}</div></div></Panel>

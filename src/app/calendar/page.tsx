@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
-import { tenderTaskAreaLabels, tenderTaskStatusLabels } from "@/lib/labels";
+import { contractMilestoneStatusLabels, contractTaskAreaLabels, contractTaskStatusLabels, tenderTaskAreaLabels, tenderTaskStatusLabels } from "@/lib/labels";
 import { Badge, PageHeader, Panel, Table } from "@/components/ui";
+import { requireOrganization } from "@/server/auth";
 
 type CalendarEvent = {
   id: string;
   date: Date;
   title: string;
   href: string;
-  kind: "gara" | "attivita";
+  kind: "gara" | "attivita" | "appalto" | "milestone";
   subtitle: string;
 };
 
@@ -55,7 +56,9 @@ function calendarDays(view: string, baseDate: Date) {
 }
 
 function eventTone(kind: CalendarEvent["kind"]) {
-  return kind === "gara" ? "warning" : "neutral";
+  if (kind === "gara") return "warning";
+  if (kind === "milestone") return "success";
+  return "neutral";
 }
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ view?: string; date?: string }> }) {
@@ -65,21 +68,31 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const days = calendarDays(view, baseDate);
   const rangeStart = days[0];
   const rangeEnd = addDays(days[days.length - 1], 1);
+  const { organization } = await requireOrganization();
+  const organizationId = organization.id;
 
-  const [tenders, tasks, agendaTenders, agendaTasks] = await Promise.all([
-    prisma.tender.findMany({ where: { deadline: { gte: rangeStart, lt: rangeEnd } }, orderBy: { deadline: "asc" } }),
-    prisma.tenderTask.findMany({ where: { dueDate: { gte: rangeStart, lt: rangeEnd } }, include: { tender: true, operator: true }, orderBy: { dueDate: "asc" } }),
-    prisma.tender.findMany({ where: { deadline: { not: null } }, orderBy: { deadline: "asc" }, take: 20 }),
-    prisma.tenderTask.findMany({ where: { dueDate: { not: null }, status: { not: "done" } }, include: { tender: true, operator: true }, orderBy: { dueDate: "asc" }, take: 30 })
+  const [tenders, tasks, contractTasks, milestones, agendaTenders, agendaTasks, agendaContractTasks, agendaMilestones] = await Promise.all([
+    prisma.tender.findMany({ where: { organizationId, deadline: { gte: rangeStart, lt: rangeEnd } }, orderBy: { deadline: "asc" } }),
+    prisma.tenderTask.findMany({ where: { organizationId, dueDate: { gte: rangeStart, lt: rangeEnd } }, include: { tender: true, operator: true }, orderBy: { dueDate: "asc" } }),
+    prisma.contractTask.findMany({ where: { organizationId, dueDate: { gte: rangeStart, lt: rangeEnd } }, include: { contract: { include: { tender: true } } }, orderBy: { dueDate: "asc" } }),
+    prisma.contractMilestone.findMany({ where: { organizationId, plannedAt: { gte: rangeStart, lt: rangeEnd } }, include: { contract: { include: { tender: true } } }, orderBy: { plannedAt: "asc" } }),
+    prisma.tender.findMany({ where: { organizationId, deadline: { not: null } }, orderBy: { deadline: "asc" }, take: 20 }),
+    prisma.tenderTask.findMany({ where: { organizationId, dueDate: { not: null }, status: { not: "done" } }, include: { tender: true, operator: true }, orderBy: { dueDate: "asc" }, take: 30 }),
+    prisma.contractTask.findMany({ where: { organizationId, dueDate: { not: null }, status: { not: "done" } }, include: { contract: { include: { tender: true } } }, orderBy: { dueDate: "asc" }, take: 30 }),
+    prisma.contractMilestone.findMany({ where: { organizationId, plannedAt: { not: null }, status: { not: "done" } }, include: { contract: { include: { tender: true } } }, orderBy: { plannedAt: "asc" }, take: 30 })
   ]);
 
   const events: CalendarEvent[] = [
     ...tenders.filter((tender) => tender.deadline).map((tender) => ({ id: `tender-${tender.id}`, date: tender.deadline as Date, title: tender.object, href: `/tenders/${tender.id}`, kind: "gara" as const, subtitle: `CIG ${tender.cig}` })),
-    ...tasks.filter((task) => task.dueDate).map((task) => ({ id: `task-${task.id}`, date: task.dueDate as Date, title: task.title, href: `/tenders/${task.tender.id}`, kind: "attivita" as const, subtitle: `${tenderTaskAreaLabels[task.area]} - ${task.operator?.displayName ?? "Generale"}` }))
+    ...tasks.filter((task) => task.dueDate).map((task) => ({ id: `task-${task.id}`, date: task.dueDate as Date, title: task.title, href: `/tenders/${task.tender.id}`, kind: "attivita" as const, subtitle: `${tenderTaskAreaLabels[task.area]} - ${task.operator?.displayName ?? "Generale"}` })),
+    ...contractTasks.filter((task) => task.dueDate).map((task) => ({ id: `contract-task-${task.id}`, date: task.dueDate as Date, title: task.title, href: `/contracts/${task.contract.id}`, kind: "appalto" as const, subtitle: `Appalto - ${contractTaskAreaLabels[task.area]}` })),
+    ...milestones.filter((m) => m.plannedAt).map((m) => ({ id: `milestone-${m.id}`, date: m.plannedAt as Date, title: m.title, href: `/contracts/${m.contract.id}`, kind: "milestone" as const, subtitle: `Appalto - ${contractMilestoneStatusLabels[m.status]}` }))
   ];
   const agenda = [
     ...agendaTenders.filter((tender) => tender.deadline).map((tender) => ({ id: `agenda-tender-${tender.id}`, date: tender.deadline as Date, title: tender.object, href: `/tenders/${tender.id}`, kind: "gara" as const, subtitle: `CIG ${tender.cig}` })),
-    ...agendaTasks.filter((task) => task.dueDate).map((task) => ({ id: `agenda-task-${task.id}`, date: task.dueDate as Date, title: task.title, href: `/tenders/${task.tender.id}`, kind: "attivita" as const, subtitle: `${tenderTaskStatusLabels[task.status]} - ${task.operator?.displayName ?? "Generale"}` }))
+    ...agendaTasks.filter((task) => task.dueDate).map((task) => ({ id: `agenda-task-${task.id}`, date: task.dueDate as Date, title: task.title, href: `/tenders/${task.tender.id}`, kind: "attivita" as const, subtitle: `${tenderTaskStatusLabels[task.status]} - ${task.operator?.displayName ?? "Generale"}` })),
+    ...agendaContractTasks.filter((task) => task.dueDate).map((task) => ({ id: `agenda-contract-task-${task.id}`, date: task.dueDate as Date, title: task.title, href: `/contracts/${task.contract.id}`, kind: "appalto" as const, subtitle: `${contractTaskStatusLabels[task.status]} - ${task.contract.tender.object}` })),
+    ...agendaMilestones.filter((m) => m.plannedAt).map((m) => ({ id: `agenda-milestone-${m.id}`, date: m.plannedAt as Date, title: m.title, href: `/contracts/${m.contract.id}`, kind: "milestone" as const, subtitle: `${contractMilestoneStatusLabels[m.status]} - ${m.contract.tender.object}` }))
   ].sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 25);
 
   const previousDate = view === "day" ? addDays(baseDate, -1) : view === "week" ? addDays(baseDate, -7) : new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1);

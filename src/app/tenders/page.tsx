@@ -3,11 +3,28 @@ import { prisma } from "@/lib/prisma";
 import { tenderOutcomeLabels } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PageHeader, SearchBar, Table } from "@/components/ui";
+import { requireOrganization } from "@/server/auth";
 
 export default async function TendersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
+  const { organization } = await requireOrganization();
+  const organizationId = organization.id;
   const tenders = await prisma.tender.findMany({
-    where: q ? { OR: [{ cig: { contains: q, mode: "insensitive" } }, { object: { contains: q, mode: "insensitive" } }, { place: { contains: q, mode: "insensitive" } }, { contractingBody: { contains: q, mode: "insensitive" } }, { workRequirements: { some: { workId: { contains: q, mode: "insensitive" } } } }, { soaRequirements: { some: { category: { contains: q, mode: "insensitive" } } } }] } : undefined,
+    where: {
+      organizationId,
+      ...(q
+        ? {
+            OR: [
+              { cig: { contains: q, mode: "insensitive" } },
+              { object: { contains: q, mode: "insensitive" } },
+              { place: { contains: q, mode: "insensitive" } },
+              { contractingBody: { contains: q, mode: "insensitive" } },
+              { workRequirements: { some: { workId: { contains: q, mode: "insensitive" } } } },
+              { soaRequirements: { some: { category: { contains: q, mode: "insensitive" } } } }
+            ]
+          }
+        : {})
+    },
     include: { grouping: true, workRequirements: true, soaRequirements: true },
     orderBy: { deadline: "asc" }
   });

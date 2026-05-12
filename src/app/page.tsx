@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { expirationStatus, formatCurrency, formatDate } from "@/lib/format";
 import { designLevelLabels, tenderOutcomeLabels, tenderTaskAreaLabels, tenderTaskStatusLabels } from "@/lib/labels";
 import { Badge, Kpi, Panel, Table } from "@/components/ui";
+import { requireOrganization } from "@/server/auth";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
@@ -12,23 +13,36 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Server-rendered operational window.
   // eslint-disable-next-line react-hooks/purity
   const in30Days = new Date(Date.now() + 30 * 86_400_000);
+  const { organization } = await requireOrganization();
+  const organizationId = organization.id;
 
-  const [operatorsCount, activeTenders, dueTenders, openTasks, nextTasks, operators, services, certifications, soaEntries, tenders] = await Promise.all([
-    prisma.economicOperator.count(),
-    prisma.tender.count({ where: { outcome: { in: ["draft", "submitted", "unknown"] } } }),
-    prisma.tender.findMany({ where: { deadline: { gte: today, lte: in30Days } }, orderBy: { deadline: "asc" }, take: 8, include: { grouping: { include: { members: { include: { operator: true } } } } } }),
-    prisma.tenderTask.count({ where: { status: { not: "done" } } }),
-    prisma.tenderTask.findMany({ where: { status: { not: "done" } }, orderBy: { dueDate: "asc" }, take: 10, include: { tender: true, operator: true } }),
-    query ? prisma.economicOperator.findMany({ where: { OR: [{ displayName: { contains: query, mode: "insensitive" } }, { tags: { contains: query, mode: "insensitive" } }] }, include: { revenues: { orderBy: { year: "desc" }, take: 3 } }, take: 20 }) : [],
+  const [activeTenders, activeContracts, dueTenders, openTasks, nextTasks, operators, services, certifications, soaEntries, tenders] = await Promise.all([
+    prisma.tender.count({ where: { organizationId, outcome: { in: ["draft", "submitted", "unknown"] } } }),
+    prisma.contract.count({ where: { organizationId, status: { in: ["draft", "active", "suspended"] } } }),
+    prisma.tender.findMany({
+      where: { organizationId, deadline: { gte: today, lte: in30Days } },
+      orderBy: { deadline: "asc" },
+      take: 8,
+      include: { grouping: { include: { members: { include: { operator: true } } } } }
+    }),
+    prisma.tenderTask.count({ where: { organizationId, status: { not: "done" } } }),
+    prisma.tenderTask.findMany({ where: { organizationId, status: { not: "done" } }, orderBy: { dueDate: "asc" }, take: 10, include: { tender: true, operator: true } }),
+    query
+      ? prisma.economicOperator.findMany({
+          where: { organizationId, OR: [{ displayName: { contains: query, mode: "insensitive" } }, { tags: { contains: query, mode: "insensitive" } }] },
+          include: { revenues: { orderBy: { year: "desc" }, take: 3 } },
+          take: 20
+        })
+      : [],
     query ? prisma.service.findMany({
-      where: { OR: [{ title: { contains: query, mode: "insensitive" } }, { client: { contains: query, mode: "insensitive" } }, { workItems: { some: { OR: [{ workId: { contains: query, mode: "insensitive" } }, { workCategory: { contains: query, mode: "insensitive" } }] } } }, { assignments: { some: { operator: { displayName: { contains: query, mode: "insensitive" } } } } }] },
+      where: { organizationId, OR: [{ title: { contains: query, mode: "insensitive" } }, { client: { contains: query, mode: "insensitive" } }, { workItems: { some: { OR: [{ workId: { contains: query, mode: "insensitive" } }, { workCategory: { contains: query, mode: "insensitive" } }] } } }, { assignments: { some: { operator: { displayName: { contains: query, mode: "insensitive" } } } } }] },
       include: { workItems: true, levels: true, assignments: { include: { operator: true } } },
       take: 30
     }) : [],
-    query ? prisma.certification.findMany({ where: { OR: [{ type: { contains: query, mode: "insensitive" } }, { number: { contains: query, mode: "insensitive" } }, { operator: { displayName: { contains: query, mode: "insensitive" } } }] }, include: { operator: true }, take: 30 }) : [],
-    query ? prisma.soaCertificate.findMany({ where: { OR: [{ certificateNumber: { contains: query, mode: "insensitive" } }, { qualifications: { some: { OR: [{ category: { contains: query, mode: "insensitive" } }, { ranking: { contains: query, mode: "insensitive" } }] } } }, { company: { name: { contains: query, mode: "insensitive" } } }] }, include: { company: true, qualifications: true }, take: 30 }) : [],
+    query ? prisma.certification.findMany({ where: { organizationId, OR: [{ type: { contains: query, mode: "insensitive" } }, { number: { contains: query, mode: "insensitive" } }, { operator: { displayName: { contains: query, mode: "insensitive" } } }] }, include: { operator: true }, take: 30 }) : [],
+    query ? prisma.soaCertificate.findMany({ where: { organizationId, OR: [{ certificateNumber: { contains: query, mode: "insensitive" } }, { qualifications: { some: { OR: [{ category: { contains: query, mode: "insensitive" } }, { ranking: { contains: query, mode: "insensitive" } }] } } }, { company: { name: { contains: query, mode: "insensitive" } } }] }, include: { company: true, qualifications: true }, take: 30 }) : [],
     query ? prisma.tender.findMany({
-      where: { OR: [{ cig: { contains: query, mode: "insensitive" } }, { object: { contains: query, mode: "insensitive" } }, { contractingBody: { contains: query, mode: "insensitive" } }, { workRequirements: { some: { workId: { contains: query, mode: "insensitive" } } } }, { soaRequirements: { some: { category: { contains: query, mode: "insensitive" } } } }, { grouping: { members: { some: { operator: { displayName: { contains: query, mode: "insensitive" } } } } } }] },
+      where: { organizationId, OR: [{ cig: { contains: query, mode: "insensitive" } }, { object: { contains: query, mode: "insensitive" } }, { contractingBody: { contains: query, mode: "insensitive" } }, { workRequirements: { some: { workId: { contains: query, mode: "insensitive" } } } }, { soaRequirements: { some: { category: { contains: query, mode: "insensitive" } } } }, { grouping: { members: { some: { operator: { displayName: { contains: query, mode: "insensitive" } } } } } }] },
       include: { workRequirements: true, soaRequirements: true, grouping: { include: { members: { include: { operator: true } } } } },
       take: 30
     }) : []
@@ -48,8 +62,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Kpi label="Operatori nel faldone" value={operatorsCount} />
         <Kpi label="Gare attive" value={activeTenders} />
+        <Kpi label="Appalti aperti" value={activeContracts} />
         <Kpi label="Attivita aperte" value={openTasks} />
       </div>
 

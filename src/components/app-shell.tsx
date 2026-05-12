@@ -3,15 +3,17 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Gauge, Handshake, Landmark, LogOut, MapPinned } from "lucide-react";
+import { Briefcase, CalendarDays, Gauge, Handshake, Landmark, LogOut, MapPinned, Settings } from "lucide-react";
 import { cn } from "@/lib/format";
 
 const navItems = [
   { href: "/", label: "Cruscotto", icon: Gauge },
   { href: "/operators", label: "Operatori Economici", icon: Landmark },
   { href: "/tenders", label: "Gare", icon: Handshake },
+  { href: "/contracts", label: "Appalti", icon: Briefcase },
   { href: "/works", label: "Categorie / ID Opera", icon: MapPinned },
-  { href: "/calendar", label: "Calendario", icon: CalendarDays }
+  { href: "/calendar", label: "Calendario", icon: CalendarDays },
+  { href: "/settings/organization", label: "Organizzazione", icon: Settings }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

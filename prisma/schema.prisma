@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -75,8 +75,135 @@ enum TenderTaskArea {
   general
 }
 
+enum UserRole {
+  admin
+  operator
+  viewer
+}
+
+enum OrganizationPlan {
+  starter
+  pro
+  enterprise
+}
+
+enum OrganizationModule {
+  design
+  dl
+  cse
+  contractor
+}
+
+enum OrganizationMemberRole {
+  owner
+  admin
+  member
+  viewer
+}
+
+enum ContractStatus {
+  draft
+  active
+  suspended
+  closed
+}
+
+enum ContractTaskStatus {
+  todo
+  doing
+  done
+}
+
+enum ContractTaskArea {
+  setup
+  execution
+  accounting
+  variations
+  closing
+  general
+}
+
+enum ContractMilestoneStatus {
+  planned
+  in_progress
+  done
+  cancelled
+}
+
+model AppUser {
+  id        String   @id @db.Uuid
+  email     String?
+  role      UserRole @default(operator)
+  defaultOrganizationId String? @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  defaultOrganization Organization? @relation("DefaultOrganization", fields: [defaultOrganizationId], references: [id], onDelete: SetNull)
+  memberships OrganizationMember[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Organization {
+  id        String @id @default(uuid()) @db.Uuid
+  slug      String @unique
+  name      String
+  plan      OrganizationPlan @default(starter)
+  modules   OrganizationModule[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members OrganizationMember[]
+  defaultForUsers AppUser[] @relation("DefaultOrganization")
+
+  companies Company[]
+  people Person[]
+  personCompanies PersonCompany[]
+  professionals Professional[]
+  personalCertifications PersonalCertification[]
+  operators EconomicOperator[]
+  revenueHistories RevenueHistory[]
+  personOperators PersonOperator[]
+  certifications Certification[]
+  soaCertificates SoaCertificate[]
+  soaQualifications SoaQualification[]
+  workReferences WorkReference[]
+  services Service[]
+  serviceAssignments ServiceAssignment[]
+  serviceWorkItems ServiceWorkItem[]
+  serviceDesignLevels ServiceDesignLevel[]
+  tenders Tender[]
+  tenderTasks TenderTask[]
+  groupings Grouping[]
+  groupMembers GroupMember[]
+  tenderWorkRequirements TenderWorkRequirement[]
+  tenderSoaRequirements TenderSoaRequirement[]
+  contracts Contract[]
+  contractTasks ContractTask[]
+  contractMilestones ContractMilestone[]
+  documents Document[]
+  notes Note[]
+}
+
+model OrganizationMember {
+  id             String @id @default(cuid())
+  organizationId String @db.Uuid
+  userId         String @db.Uuid
+  role           OrganizationMemberRole @default(member)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         AppUser      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
 model Company {
   id          String      @id @default(cuid())
+  organizationId String   @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   name        String
   subjectType SubjectType @default(other)
   vatNumber   String?
@@ -92,6 +219,7 @@ model Company {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   operator       EconomicOperator?
   people         PersonCompany[]
   certifications Certification[]
@@ -99,12 +227,14 @@ model Company {
   documents      Document[]
   notesList      Note[]
 
+  @@index([organizationId])
   @@index([name])
   @@index([subjectType])
 }
 
 model Person {
   id        String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   firstName String
   lastName  String
   email     String?
@@ -127,6 +257,7 @@ model Person {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   companies    PersonCompany[]
   operators    PersonOperator[]
   professional Professional?
@@ -134,11 +265,13 @@ model Person {
   documents    Document[]
   notesList    Note[]
 
+  @@index([organizationId])
   @@index([lastName, firstName])
 }
 
 model PersonCompany {
   id        String            @id @default(cuid())
+  organizationId String       @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   personId  String
   companyId String
   role      PersonCompanyRole @default(contact)
@@ -147,16 +280,19 @@ model PersonCompany {
   endDate   DateTime?
   notes     String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([personId, companyId, role])
+  @@index([organizationId])
   @@index([companyId])
   @@index([personId])
 }
 
 model Professional {
   id             String   @id @default(cuid())
+  organizationId String   @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   personId       String   @unique
   register       String?
   registerNumber String?
@@ -167,26 +303,33 @@ model Professional {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   operator     EconomicOperator?
   person       Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model PersonalCertification {
   id        String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   personId  String
   name      String
   issuedAt  DateTime?
   expiresAt DateTime?
   notes     String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
   @@index([personId])
   @@index([name])
 }
 
 model EconomicOperator {
   id             String       @id @default(cuid())
+  organizationId String       @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   displayName    String
   operatorType   OperatorType
   companyId      String?      @unique
@@ -197,6 +340,7 @@ model EconomicOperator {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   company      Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   professional Professional?  @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   revenues     RevenueHistory[]
@@ -206,12 +350,14 @@ model EconomicOperator {
   people       PersonOperator[]
   certifications Certification[]
 
+  @@index([organizationId])
   @@index([displayName])
   @@index([operatorType])
 }
 
 model RevenueHistory {
   id         String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   operatorId String
   year       Int
   revenue    Decimal  @db.Decimal(14, 2)
@@ -219,14 +365,17 @@ model RevenueHistory {
   notes      String?
   createdAt  DateTime @default(now())
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   operator EconomicOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
 
   @@unique([operatorId, year])
+  @@index([organizationId])
   @@index([year])
 }
 
 model PersonOperator {
   id         String            @id @default(cuid())
+  organizationId String        @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   personId   String
   operatorId String
   role       PersonCompanyRole @default(contact)
@@ -235,16 +384,19 @@ model PersonOperator {
   endDate    DateTime?
   notes      String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   person   Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
   operator EconomicOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
 
   @@unique([personId, operatorId, role])
+  @@index([organizationId])
   @@index([operatorId])
   @@index([personId])
 }
 
 model Certification {
   id            String    @id @default(cuid())
+  organizationId String   @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   operatorId    String
   companyId     String?
   type          String
@@ -257,9 +409,11 @@ model Certification {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   operator EconomicOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([operatorId])
   @@index([companyId])
   @@index([expiresAt])
@@ -267,6 +421,7 @@ model Certification {
 
 model SoaCertificate {
   id          String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   companyId   String
   certificateNumber String?
   issuingBody String?
@@ -276,22 +431,27 @@ model SoaCertificate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   company        Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   qualifications SoaQualification[]
 
+  @@index([organizationId])
   @@index([companyId])
   @@index([expiresAt])
 }
 
 model SoaQualification {
   id               String @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   soaCertificateId String
   category         String
   ranking          String
   notes            String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   certificate SoaCertificate @relation(fields: [soaCertificateId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
   @@index([soaCertificateId])
   @@index([category])
   @@index([ranking])
@@ -299,20 +459,25 @@ model SoaQualification {
 
 model WorkReference {
   id          String @id @default(cuid())
-  code        String @unique
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
+  code        String
   category    String?
   description String?
   notes       String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   serviceItems       ServiceWorkItem[]
   tenderRequirements TenderWorkRequirement[]
 
+  @@unique([organizationId, code])
+  @@index([organizationId])
   @@index([code])
   @@index([category])
 }
 
 model Service {
   id          String      @id @default(cuid())
+  organizationId String   @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   title       String
   client      String?
   feeAmount   Decimal?    @db.Decimal(14, 2)
@@ -322,30 +487,37 @@ model Service {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   assignments ServiceAssignment[]
   workItems   ServiceWorkItem[]
   levels      ServiceDesignLevel[]
   documents   Document[]
   notesList   Note[]
+
+  @@index([organizationId])
 }
 
 model ServiceAssignment {
   id             String @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   serviceId      String
   operatorId     String?
   role           String?
   executionPercent Decimal? @db.Decimal(5, 2)
   notes          String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   service  Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   operator EconomicOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([serviceId])
   @@index([operatorId])
 }
 
 model ServiceWorkItem {
   id           String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   serviceId    String
   workReferenceId String?
   workId       String
@@ -354,9 +526,11 @@ model ServiceWorkItem {
   sharePercent Decimal? @db.Decimal(5, 2)
   notes        String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   service       Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   workReference WorkReference? @relation(fields: [workReferenceId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([serviceId])
   @@index([workReferenceId])
   @@index([workId])
@@ -365,19 +539,23 @@ model ServiceWorkItem {
 
 model ServiceDesignLevel {
   id        String      @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   serviceId String
   level     DesignLevel
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([serviceId, level])
+  @@index([organizationId])
   @@index([level])
 }
 
 model Tender {
   id               String        @id @default(cuid())
+  organizationId   String        @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   object           String
-  cig              String        @unique
+  cig              String
   cup              String?
   place            String?
   contractingBody  String?
@@ -389,21 +567,94 @@ model Tender {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   grouping Grouping?
   workRequirements TenderWorkRequirement[]
   soaRequirements  TenderSoaRequirement[]
   documents    Document[]
   notesList    Note[]
   tasks        TenderTask[]
+  contract     Contract?
 
+  @@unique([organizationId, cig])
+  @@index([organizationId])
   @@index([cig])
   @@index([place])
   @@index([contractingBody])
   @@index([deadline])
 }
 
+model Contract {
+  id         String         @id @default(cuid())
+  organizationId String     @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
+  tenderId   String         @unique
+  status     ContractStatus @default(draft)
+  awardedAt  DateTime?
+  awardedValue Decimal?     @db.Decimal(14, 2)
+  startedAt  DateTime?
+  endedAt    DateTime?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  tender     Tender     @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  documents  Document[]
+  notesList  Note[]
+  tasks      ContractTask[]
+  milestones ContractMilestone[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([awardedAt])
+}
+
+model ContractTask {
+  id          String             @id @default(cuid())
+  organizationId String          @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
+  contractId  String
+  title       String
+  area        ContractTaskArea   @default(general)
+  status      ContractTaskStatus @default(todo)
+  dueDate     DateTime?
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([contractId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([area])
+}
+
+model ContractMilestone {
+  id          String                @id @default(cuid())
+  organizationId String             @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
+  contractId  String
+  title       String
+  plannedAt   DateTime?
+  amount      Decimal?              @db.Decimal(14, 2)
+  status      ContractMilestoneStatus @default(planned)
+  notes       String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([contractId])
+  @@index([status])
+  @@index([plannedAt])
+}
+
 model TenderTask {
   id          String           @id @default(cuid())
+  organizationId String        @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   tenderId    String
   operatorId  String?
   title       String
@@ -414,9 +665,11 @@ model TenderTask {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   tender   Tender            @relation(fields: [tenderId], references: [id], onDelete: Cascade)
   operator EconomicOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([tenderId])
   @@index([operatorId])
   @@index([status])
@@ -425,6 +678,7 @@ model TenderTask {
 
 model Grouping {
   id        String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   tenderId  String   @unique
   name      String
   type      String   @default("RTI")
@@ -432,27 +686,34 @@ model Grouping {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   members      GroupMember[]
   tender       Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model GroupMember {
   id             String          @id @default(cuid())
+  organizationId String          @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   groupingId     String
   operatorId     String?
   role           GroupMemberRole @default(member)
   sharePercent   Decimal?        @db.Decimal(5, 2)
   notes          String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   grouping Grouping          @relation(fields: [groupingId], references: [id], onDelete: Cascade)
   operator EconomicOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([groupingId])
   @@index([operatorId])
 }
 
 model TenderWorkRequirement {
   id        String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   tenderId  String
   workReferenceId String?
   workId    String
@@ -460,9 +721,11 @@ model TenderWorkRequirement {
   amount    Decimal? @db.Decimal(14, 2)
   notes     String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   tender        Tender         @relation(fields: [tenderId], references: [id], onDelete: Cascade)
   workReference WorkReference? @relation(fields: [workReferenceId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([tenderId])
   @@index([workReferenceId])
   @@index([workId])
@@ -471,45 +734,71 @@ model TenderWorkRequirement {
 
 model TenderSoaRequirement {
   id        String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   tenderId  String
   category  String
   ranking   String?
   notes     String?
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
   @@index([tenderId])
   @@index([category])
 }
 
 model Document {
   id             String   @id @default(cuid())
+  organizationId String   @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   title          String
   url            String?
   companyId      String?
   personId       String?
   serviceId      String?
   tenderId       String?
+  contractId     String?
+  storageProvider String @default("local")
+  storagePath    String?
+  fileName       String?
+  mimeType       String?
+  sizeBytes      Int?
+  version        Int      @default(1)
   notes          String?
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   person  Person?  @relation(fields: [personId], references: [id], onDelete: Cascade)
   service Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   tender  Tender?  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([tenderId])
+  @@index([contractId])
 }
 
 model Note {
   id        String   @id @default(cuid())
+  organizationId String @default(dbgenerated("'00000000-0000-0000-0000-000000000001'::uuid")) @db.Uuid
   body      String
   companyId String?
   personId  String?
   serviceId String?
   tenderId  String?
+  contractId String?
   createdAt DateTime @default(now())
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   person  Person?  @relation(fields: [personId], references: [id], onDelete: Cascade)
   service Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   tender  Tender?  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([tenderId])
+  @@index([contractId])
 }

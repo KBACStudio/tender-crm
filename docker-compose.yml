@@ -29,11 +29,28 @@ services:
       DIRECT_URL: ${DIRECT_URL:-postgresql://app:app_password@db:5432/technical_crm?schema=public}
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+      COLLABORA_URL: ${COLLABORA_URL:-http://localhost:9980}
+      WOPI_BASE_URL: ${WOPI_BASE_URL:-http://app:3000}
+      WOPI_SECRET: ${WOPI_SECRET:-dev-wopi-secret}
     ports:
       - "${APP_PORT:-3000}:3000"
     volumes:
       - .:/app
       - /app/node_modules
+
+  collabora:
+    image: collabora/code:latest
+    container_name: technical-crm-collabora
+    restart: unless-stopped
+    environment:
+      domain: ${COLLABORA_DOMAIN:-localhost}
+      username: ${COLLABORA_ADMIN_USER:-admin}
+      password: ${COLLABORA_ADMIN_PASSWORD:-admin}
+      extra_params: --o:ssl.enable=false --o:welcome.enable=false
+    cap_add:
+      - MKNOD
+    ports:
+      - "9980:9980"
 
 volumes:
   postgres_data:
